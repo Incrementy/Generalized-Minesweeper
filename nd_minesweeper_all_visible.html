@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>N-D Minesweeper</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <style>
+            :root {
+                --bg: #0d0d0d;
+                --panel: #161616;
+                --accent: #4ec7ff;
+                --danger: #ff4d55;
+                --warn: #ffc94d;
+                --ok: #53e27a;
+                --cell-size: 26px;
+                --tile-border: #3e3e3e;
+                --tile-bg: #3a3a3a;
+                --tile-bg-hover: #505050;
+                --tile-bg-rev: #1c1c1c;
+                --tile-gap: 2px;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    Segoe UI,
+                    Roboto,
+                    Ubuntu,
+                    "Open Sans",
+                    "Helvetica Neue",
+                    sans-serif;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: #e6e6e6;
+                -webkit-font-smoothing: antialiased;
+            }
+            h1 {
+                font-size: 18px;
+                font-weight: 600;
+                margin: 10px 0 14px;
+                letter-spacing: 0.5px;
+                text-align: center;
+            }
+            #app {
+                max-width: 1900px;
+                margin: 0 auto;
+                padding: 10px 18px 40px;
+            }
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 14px;
+                background: var(--panel);
+                padding: 12px 16px 16px;
+                border: 1px solid #242424;
+                border-radius: 6px;
+                justify-content: center;
+            }
+            .controls label {
+                display: flex;
+                flex-direction: column;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.6px;
+                gap: 4px;
+                font-weight: 600;
+            }
+            .controls input {
+                background: #222;
+                border: 1px solid #333;
+                padding: 6px 8px;
+                color: #fff;
+                font-size: 14px;
+                outline: none;
+                min-width: 110px;
+            }
+            .controls input:focus {
+                border-color: var(--accent);
+            }
+            button {
+                background: #242424;
+                border: 1px solid #3d3d3d;
+                color: #eee;
+                font-weight: 600;
+                padding: 8px 16px;
+                cursor: pointer;
+                letter-spacing: 0.4px;
+                font-size: 14px;
+                transition:
+                    0.15s background,
+                    0.15s border;
+            }
+            button:hover {
+                background: #303030;
+            }
+            button:active {
+                background: #181818;
+            }
+            button:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            .inline-note {
+                flex: 1 1 100%;
+                font-size: 12px;
+                opacity: 0;
+                line-height: 1.4;
+                text-align: center;
+                height: 0;
+                overflow: hidden;
+            }
+            .status-bar {
+                display: flex;
+                gap: 14px;
+                flex-wrap: wrap;
+                margin: 16px auto 6px;
+                justify-content: center;
+                max-width: 1200px;
+            }
+            .status-item {
+                background: #161616;
+                border: 1px solid #262626;
+                padding: 6px 12px;
+                font-size: 13px;
+                letter-spacing: 0.5px;
+                border-radius: 4px;
+                min-width: 110px;
+                text-align: center;
+                box-shadow: 0 0 0 1px #000 inset;
+            }
+            .status-item.good {
+                color: var(--ok);
+            }
+            .status-item.bad {
+                color: var(--danger);
+            }
+            .status-item.warn {
+                color: var(--warn);
+            }
+            #boardsContainer {
+                margin-top: 10px;
+                overflow: auto;
+                max-height: calc(100vh - 235px);
+                padding: 12px 10px 70px;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+            }
+            #boardsContainer::-webkit-scrollbar {
+                width: 14px;
+                height: 14px;
+            }
+            #boardsContainer::-webkit-scrollbar-track {
+                background: #111;
+            }
+            #boardsContainer::-webkit-scrollbar-thumb {
+                background: #2a2a2a;
+                border: 3px solid #111;
+                border-radius: 8px;
+            }
+            #boardsContainer::-webkit-scrollbar-thumb:hover {
+                background: #383838;
+            }
+            .group {
+                position: relative;
+                display: grid;
+            }
+            .tile-grid {
+                display: grid;
+                gap: var(--tile-gap);
+            }
+            .tile {
+                width: var(--cell-size);
+                height: var(--cell-size);
+                background: var(--tile-bg);
+                border: 1px solid var(--tile-border);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                font-size: 13px;
+                user-select: none;
+                cursor: pointer;
+                color: #ddd;
+                border-radius: 0;
+                position: relative;
+                transition:
+                    background 0.12s,
+                    color 0.12s,
+                    outline 0.12s,
+                    box-shadow 0.12s;
+            }
+            .tile:hover:not(.revealed):not(.flagged) {
+                background: var(--tile-bg-hover);
+            }
+            .tile.revealed {
+                background: var(--tile-bg-rev);
+                border-color: #2d2d2d;
+                color: #d4d4d4;
+            }
+            .tile.revealed.zero {
+                color: #666;
+            }
+            .tile.flagged:not(.revealed) {
+                background: #29240e;
+                border-color: #5e4d10;
+                color: var(--warn);
+            }
+            .tile.mine.revealed {
+                background: #441b1b;
+                color: var(--danger);
+            }
+            .tile.mine.hit {
+                background: #a30017;
+                color: #fff;
+                animation: hit 0.35s ease;
+            }
+            @keyframes hit {
+                0% {
+                    transform: scale(1);
+                }
+                40% {
+                    transform: scale(1.15);
+                }
+                100% {
+                    transform: scale(1);
+                }
+            }
+            .tile.hovered {
+                outline: 2px solid #ffffffd0;
+                background: #5b5b5b;
+                z-index: 3;
+            }
+            /* Hover adjacency highlighting changed to neutral white-ish instead of blue */
+            .tile.adjacent:not(.revealed):not(.flagged) {
+                background: #5a5a5a;
+                border-color: #cfcfcf;
+            }
+            .tile.adjacent.revealed {
+                box-shadow: 0 0 0 1px #ffffff55 inset;
+            }
+            /* Classic Minesweeper number colors */
+            .number-1 {
+                color: #0000ff;
+            }
+            .number-2 {
+                color: #008000;
+            }
+            .number-3 {
+                color: #ff0000;
+            }
+            .number-4 {
+                color: #000080;
+            }
+            .number-5 {
+                color: #800000;
+            }
+            .number-6 {
+                color: #008080;
+            }
+            .number-7 {
+                color: #000000;
+            }
+            .number-8 {
+                color: #808080;
+            }
+            #toast {
+                position: fixed;
+                right: 18px;
+                bottom: 18px;
+                background: #1d1d1d;
+                border: 1px solid #333;
+                padding: 10px 14px;
+                font-size: 13px;
+                letter-spacing: 0.3px;
+                border-radius: 4px;
+                opacity: 0;
+                transform: translateY(10px);
+                transition:
+                    0.25s opacity,
+                    0.25s transform;
+                max-width: 340px;
+                box-shadow: 0 6px 22px -8px #000;
+                pointer-events: none;
+            }
+            #toast.show {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            @media (max-width: 1200px) {
+                :root {
+                    --cell-size: 24px;
+                }
+            }
+            @media (max-width: 800px) {
+                :root {
+                    --cell-size: 22px;
+                }
+                .controls {
+                    gap: 10px;
+                }
+                .status-item {
+                    padding: 5px 8px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app">
+            <h1>N‑Dimensional Minesweeper</h1>
+            <div class="controls">
+                <label
+                    >Dimensions
+                    <input
+                        id="dimsInput"
+                        type="text"
+                        value="4x4x4x4"
+                        placeholder="e.g. 4x4x4x4x3"
+                    />
+                </label>
+                <label
+                    >Mines
+                    <input id="minesInput" type="number" min="1" value="15" />
+                </label>
+                <label
+                    >Seed
+                    <input id="seedInput" type="text" placeholder="optional" />
+                </label>
+                <div style="display: flex; gap: 8px; align-items: flex-end">
+                    <button id="startBtn">Start</button>
+                    <button id="restartBtn" disabled>Restart</button>
+                    <button id="pauseBtn" disabled>Pause</button>
+                    <button id="revealAllBtn" disabled>Reveal All</button>
+                </div>
+                <div class="inline-note"></div>
+            </div>
+
+            <div class="status-bar" id="statusBar" style="display: none">
+                <div class="status-item" id="statusMines"></div>
+                <div class="status-item" id="statusFlags"></div>
+                <div class="status-item" id="statusRevealed"></div>
+                <div class="status-item" id="statusTimer"></div>
+                <div class="status-item" id="statusGame"></div>
+            </div>
+
+            <div id="boardsContainer"></div>
+        </div>
+        <div id="toast"></div>
+
+        <script>
+            function mulberry32(a) {
+                return function () {
+                    let t = (a += 0x6d2b79f5);
+                    t = Math.imul(t ^ (t >>> 15), t | 1);
+                    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+                };
+            }
+            function xmur3(str) {
+                let h = 1779033703 ^ str.length;
+                for (let i = 0; i < str.length; i++) {
+                    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+                    h = (h << 13) | (h >>> 19);
+                }
+                h = Math.imul(h ^ (h >>> 16), 2246822507);
+                h = Math.imul(h ^ (h >>> 13), 3266489909);
+                return (h ^ (h >>> 16)) >>> 0;
+            }
+            const $ = (s) => document.querySelector(s);
+            const dIn = $("#dimsInput");
+            const mIn = $("#minesInput");
+            const sIn = $("#seedInput");
+            const bStart = $("#startBtn");
+            const bRestart = $("#restartBtn");
+            const bPause = $("#pauseBtn");
+            const bReveal = $("#revealAllBtn");
+            const cont = $("#boardsContainer");
+            const statBar = $("#statusBar");
+            const stM = $("#statusMines");
+            const stF = $("#statusFlags");
+            const stR = $("#statusRevealed");
+            const stT = $("#statusTimer");
+            const stG = $("#statusGame");
+            const toast = $("#toast");
+
+            const DEFAULT_MAX_CELLS = 120000;
+
+            let g = null;
+            let tInt = null;
+            let p = false;
+
+            function showToast(m, t = 2600) {
+                toast.textContent = m;
+                toast.classList.add("show");
+                clearTimeout(toast._t);
+                toast._t = setTimeout(() => toast.classList.remove("show"), t);
+            }
+
+            function parseDims(str) {
+                const parts = str
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^0-9x]/g, "")
+                    .split("x")
+                    .filter(Boolean);
+                if (!parts.length) throw new Error("Enter dims");
+                return parts.map((p) => {
+                    const n = parseInt(p, 10);
+                    if (!(n > 0)) throw new Error("Bad");
+                    return n;
+                });
+            }
+
+            function product(a) {
+                return a.reduce((x, y) => x * y, 1);
+            }
+
+            function strides(d) {
+                const out = [];
+                let acc = 1;
+                for (let i = d.length - 1; i >= 0; i--) {
+                    out[i] = acc;
+                    acc *= d[i];
+                }
+                return out;
+            }
+
+            function c2i(c, s) {
+                let i = 0;
+                for (let k = 0; k < c.length; k++) i += c[k] * s[k];
+                return i;
+            }
+
+            function i2c(i, d, s) {
+                const c = new Array(d.length);
+                for (let k = 0; k < d.length; k++)
+                    c[k] = Math.floor(i / s[k]) % d[k];
+                return c;
+            }
+
+            function genOff(n) {
+                const r = [];
+                function rec(i, cur) {
+                    if (i === n) {
+                        if (!cur.every((v) => v === 0)) r.push(cur.slice());
+                        return;
+                    }
+                    for (let d = -1; d <= 1; d++) {
+                        cur.push(d);
+                        rec(i + 1, cur);
+                        cur.pop();
+                    }
+                }
+                rec(0, []);
+                return r;
+            }
+
+            function buildLevels(d) {
+                if (d.length <= 2)
+                    return {
+                        levels: [],
+                        tileIdx: [d.length - 2, d.length - 1],
+                    };
+                const N = d.length;
+                const tileIdx = [N - 2, N - 1];
+                let R = Array.from({ length: N - 2 }, (_, i) => i);
+                const lv = [];
+                while (R.length >= 2) {
+                    const i2 = R.pop();
+                    const i1 = R.pop();
+                    lv.push({ type: "pair", indices: [i1, i2] });
+                }
+                if (R.length === 1)
+                    lv.push({ type: "single", indices: [R.pop()] });
+                lv.reverse();
+                return { levels: lv, tileIdx };
+            }
+
+            function initGame(d, mineCount, seed, lim) {
+                const tot = product(d);
+                if (tot > lim) throw new Error("Too many");
+                const rng = seed
+                    ? mulberry32(xmur3(seed))
+                    : mulberry32((Math.random() * 1e9) | 0);
+                const s = strides(d);
+                const bombs = new Uint8Array(tot);
+                const cnt = new Uint16Array(tot);
+                const rev = new Uint8Array(tot);
+                const flg = new Uint8Array(tot);
+                const mines = Math.max(
+                    1,
+                    Math.min(
+                        tot - 1,
+                        Number.isFinite(mineCount) ? mineCount | 0 : 1,
+                    ),
+                );
+                const arr = Array.from({ length: tot }, (_, i) => i);
+                for (let i = 0; i < mines; i++) {
+                    const r = i + Math.floor(rng() * (tot - i));
+                    [arr[i], arr[r]] = [arr[r], arr[i]];
+                    bombs[arr[i]] = 1;
+                }
+                const nOff = genOff(d.length);
+                for (let i = 0; i < tot; i++) {
+                    if (bombs[i]) continue;
+                    const c = i2c(i, d, s);
+                    let n = 0;
+                    outer: for (const o of nOff) {
+                        for (let k = 0; k < c.length; k++) {
+                            const v = c[k] + o[k];
+                            if (v < 0 || v >= d[k]) continue outer;
+                        }
+                        const cc = c.map((v, k) => v + o[k]);
+                        if (bombs[c2i(cc, s)]) n++;
+                    }
+                    cnt[i] = n;
+                }
+                const { levels, tileIdx } = buildLevels(d);
+                return {
+                    dims: d,
+                    total: tot,
+                    bombs,
+                    cnt,
+                    rev,
+                    flg,
+                    strd: s,
+                    mineCount: mines,
+                    nOff,
+                    levels,
+                    tileIdx,
+                    tiles: new Array(tot),
+                    tStart: null,
+                    tEnd: null,
+                    over: false,
+                    won: false,
+                    hoverSet: [],
+                    hoverCenter: null,
+                };
+            }
+
+            function renderAll() {
+                cont.innerHTML = "";
+                if (!g) return;
+                const root = document.createElement("div");
+                root.style.display = "inline-block";
+                cont.appendChild(root);
+                const d = g.dims;
+                const lv = g.levels;
+                const tDims = [d[g.tileIdx[0]], d[g.tileIdx[1]]];
+                const coord = new Array(d.length).fill(0);
+                const L = lv.length;
+                const base = 0.2;
+                function rl(i, parent) {
+                    if (i === lv.length) {
+                        const rows = tDims[0];
+                        const cols = tDims[1];
+                        const board = document.createElement("div");
+                        const grid = document.createElement("div");
+                        grid.className = "tile-grid";
+                        grid.style.gridTemplateColumns = `repeat(${cols}, var(--cell-size))`;
+                        grid.style.gridTemplateRows = `repeat(${rows}, var(--cell-size))`;
+                        board.appendChild(grid);
+                        parent.appendChild(board);
+                        for (let r = 0; r < rows; r++) {
+                            coord[g.tileIdx[0]] = r;
+                            for (let c = 0; c < cols; c++) {
+                                coord[g.tileIdx[1]] = c;
+                                const idx = c2i(coord, g.strd);
+                                const t = document.createElement("div");
+                                t.className = "tile";
+                                t.dataset.index = idx;
+                                applyTileState(t, idx);
+                                t.addEventListener("mousedown", tileMouseDown);
+                                t.addEventListener("contextmenu", (e) =>
+                                    e.preventDefault(),
+                                );
+                                t.addEventListener("mouseenter", hoverEnter);
+                                t.addEventListener("mouseleave", hoverLeave);
+                                g.tiles[idx] = t;
+                                grid.appendChild(t);
+                            }
+                        }
+                        return;
+                    }
+                    const Ld = lv[i];
+                    const gEl = document.createElement("div");
+                    gEl.className = `group ${Ld.type === "pair" ? "pair" : "single"} l-${i}`;
+                    const mult = base * (L - i);
+                    gEl.style.gap = `calc(var(--cell-size)*${mult.toFixed(3)})`;
+                    parent.appendChild(gEl);
+                    if (Ld.type === "pair") {
+                        const i1 = Ld.indices[0];
+                        const i2 = Ld.indices[1];
+                        const rSize = d[i1];
+                        const cSize = d[i2];
+                        gEl.style.gridTemplateColumns = `repeat(${cSize}, auto)`;
+                        for (let r = 0; r < rSize; r++) {
+                            coord[i1] = r;
+                            for (let c = 0; c < cSize; c++) {
+                                coord[i2] = c;
+                                const wrap = document.createElement("div");
+                                gEl.appendChild(wrap);
+                                rl(i + 1, wrap);
+                            }
+                        }
+                    } else {
+                        const ix = Ld.indices[0];
+                        const size = d[ix];
+                        gEl.style.gridTemplateColumns = `repeat(${size}, auto)`;
+                        for (let v = 0; v < size; v++) {
+                            coord[ix] = v;
+                            const wrap = document.createElement("div");
+                            gEl.appendChild(wrap);
+                            rl(i + 1, wrap);
+                        }
+                    }
+                }
+                rl(0, root);
+                updateStatus();
+            }
+
+            function applyTileState(tile, idx) {
+                const r = g.rev;
+                const f = g.flg;
+                const b = g.bombs;
+                const c = g.cnt;
+                tile.className = "tile";
+                if (r[idx]) {
+                    tile.classList.add("revealed");
+                    if (b[idx]) {
+                        tile.classList.add("mine");
+                        tile.textContent = "";
+                    } else {
+                        const n = c[idx];
+                        if (n === 0) {
+                            tile.classList.add("zero");
+                            tile.textContent = "";
+                        } else {
+                            tile.textContent = n;
+                            tile.classList.add("number-" + n);
+                        }
+                    }
+                } else {
+                    if (f[idx]) {
+                        tile.classList.add("flagged");
+                        tile.textContent = "";
+                    } else {
+                        tile.textContent = "";
+                    }
+                }
+            }
+
+            function tileMouseDown(e) {
+                if (!g || p) return;
+                e.preventDefault();
+                const idx = parseInt(this.dataset.index, 10);
+
+                // Chording: left+right together or middle-click
+                if ((e.buttons & 3) === 3 || e.button === 1) {
+                    chordReveal(idx);
+                    updateStatus();
+                    return;
+                }
+
+                if (e.button === 2 || e.metaKey || e.ctrlKey) {
+                    toggleFlag(idx);
+                } else if (e.button === 0) {
+                    if (g.rev[idx]) {
+                        chordReveal(idx);
+                        updateStatus();
+                    } else {
+                        handleReveal(idx);
+                    }
+                }
+            }
+
+            function toggleFlag(i) {
+                if (g.over || g.rev[i]) return;
+                g.flg[i] ^= 1;
+                applyTileState(g.tiles[i], i);
+                updateStatus();
+            }
+
+            function handleReveal(i) {
+                if (g.over) return;
+                if (g.flg[i]) return;
+                if (!g.tStart) {
+                    g.tStart = Date.now();
+                    startTimer();
+                }
+                if (g.rev[i]) {
+                    chordReveal(i);
+                    return;
+                }
+                revealCell(i);
+                checkWin();
+                updateStatus();
+            }
+
+            function revealCell(i) {
+                if (g.rev[i]) return;
+                g.rev[i] = 1;
+                if (g.bombs[i]) {
+                    g.over = true;
+                    g.tiles[i]?.classList.add("hit");
+                    revealAllMines();
+                    g.tEnd = Date.now();
+                    updateStatus();
+                    showToast("Boom");
+                    return;
+                }
+                applyTileState(g.tiles[i], i);
+                if (g.cnt[i] === 0) flood(i);
+            }
+
+            function getNeighbors(i) {
+                const c = i2c(i, g.dims, g.strd);
+                const res = [];
+                outer: for (const o of g.nOff) {
+                    for (let k = 0; k < c.length; k++) {
+                        const v = c[k] + o[k];
+                        if (v < 0 || v >= g.dims[k]) continue outer;
+                    }
+                    const cc = c.map((v, k) => v + o[k]);
+                    res.push(c2i(cc, g.strd));
+                }
+                return res;
+            }
+
+            function flood(st) {
+                const stack = [st];
+                const seen = new Uint8Array(g.total);
+                seen[st] = 1;
+                while (stack.length) {
+                    const cur = stack.pop();
+                    for (const n of getNeighbors(cur)) {
+                        if (g.flg[n] || g.rev[n]) continue;
+                        g.rev[n] = 1;
+                        applyTileState(g.tiles[n], n);
+                        if (g.cnt[n] === 0 && !seen[n]) {
+                            seen[n] = 1;
+                            stack.push(n);
+                        }
+                    }
+                }
+            }
+
+            function chordReveal(i) {
+                if (g.bombs[i]) return;
+                const need = g.cnt[i];
+                if (need <= 0) return;
+                const nb = getNeighbors(i);
+                let fC = 0;
+                for (const n of nb) if (g.flg[n]) fC++;
+                if (fC === need) {
+                    for (const n of nb) {
+                        if (!g.flg[n] && !g.rev[n]) revealCell(n);
+                    }
+                    checkWin();
+                }
+            }
+
+            function revealAllMines() {
+                for (let i = 0; i < g.total; i++) {
+                    if (g.bombs[i]) {
+                        g.rev[i] = 1;
+                        applyTileState(g.tiles[i], i);
+                    }
+                }
+            }
+
+            function checkWin() {
+                if (g.over) return;
+                let safe = 0;
+                for (let i = 0; i < g.total; i++) {
+                    if (!g.bombs[i] && g.rev[i]) safe++;
+                }
+                if (safe === g.total - g.mineCount) {
+                    g.over = true;
+                    g.won = true;
+                    g.tEnd = Date.now();
+                    updateStatus();
+                    showToast(
+                        "Win " + ((g.tEnd - g.tStart) / 1000).toFixed(2) + "s",
+                        4500,
+                    );
+                }
+            }
+
+            function clearHover() {
+                if (!g) return;
+                if (g.hoverCenter != null) {
+                    const ct = g.tiles[g.hoverCenter];
+                    ct && ct.classList.remove("hovered");
+                }
+                if (g.hoverSet) {
+                    for (const i of g.hoverSet) {
+                        const el = g.tiles[i];
+                        el && el.classList.remove("adjacent");
+                    }
+                }
+                g.hoverSet = [];
+                g.hoverCenter = null;
+            }
+
+            function hoverEnter() {
+                if (!g) return;
+                clearHover();
+                const i = parseInt(this.dataset.index, 10);
+                g.hoverCenter = i;
+                g.tiles[i]?.classList.add("hovered");
+                const nb = getNeighbors(i);
+                g.hoverSet = nb;
+                for (const n of nb) g.tiles[n]?.classList.add("adjacent");
+            }
+
+            function hoverLeave() {
+                setTimeout(() => {}, 8);
+            }
+
+            cont.addEventListener("mouseleave", clearHover);
+
+            function updateStatus() {
+                if (!g) return;
+                let flags = 0;
+                let revd = 0;
+                for (let i = 0; i < g.total; i++) {
+                    if (g.flg[i]) flags++;
+                    if (g.rev[i]) revd++;
+                }
+                stM.textContent = "Mines: " + g.mineCount;
+                stF.textContent = "Flags: " + flags;
+                stR.textContent = "Revealed: " + revd + "/" + g.total;
+                const now = Date.now();
+                let t = 0;
+                if (g.tStart) t = ((g.over ? g.tEnd : now) - g.tStart) / 1000;
+                stT.textContent = "Time: " + t.toFixed(2) + "s";
+                stG.textContent = g.won
+                    ? "Status: Won"
+                    : g.over
+                      ? "Status: Lost"
+                      : p
+                        ? "Status: Paused"
+                        : "Status: Playing";
+                stG.className =
+                    "status-item " +
+                    (g.won ? "good" : g.over ? "bad" : p ? "warn" : "");
+            }
+
+            function startTimer() {
+                clearInterval(tInt);
+                tInt = setInterval(() => {
+                    if (g && !p) updateStatus();
+                }, 70);
+            }
+
+            function startGame() {
+                try {
+                    const dims = parseDims(dIn.value);
+                    if (dims.length === 1) dims.push(1);
+                    const mineCountInput = parseInt(mIn.value, 10);
+                    const seed = sIn.value.trim();
+                    const lim = DEFAULT_MAX_CELLS;
+                    g = initGame(dims, mineCountInput, seed, lim);
+                    p = false;
+                    renderAll();
+                    statBar.style.display = "flex";
+                    bRestart.disabled = false;
+                    bPause.disabled = false;
+                    bReveal.disabled = false;
+                    bPause.textContent = "Pause";
+                    updateStatus();
+                    showToast(
+                        `Game ${dims.join("x")} cells=${g.total} mines=${g.mineCount}${seed ? " seed:" + seed : ""}`,
+                    );
+                } catch (e) {
+                    showToast("Error " + e.message, 5000);
+                }
+            }
+
+            bStart.addEventListener("click", startGame);
+
+            bRestart.addEventListener("click", () => {
+                if (!g) return;
+                const dims = g.dims.slice();
+                const mineCountInput = parseInt(mIn.value, 10);
+                const seed = sIn.value.trim();
+                const lim = DEFAULT_MAX_CELLS;
+                g = initGame(dims, mineCountInput, seed, lim);
+                p = false;
+                renderAll();
+                bPause.textContent = "Pause";
+                showToast("Restarted");
+            });
+
+            bPause.addEventListener("click", () => {
+                if (!g || g.over) return;
+                p = !p;
+                bPause.textContent = p ? "Resume" : "Pause";
+                updateStatus();
+            });
+
+            bReveal.addEventListener("click", () => {
+                if (!g) return;
+                revealAllMines();
+                g.over = true;
+                g.tEnd = Date.now();
+                updateStatus();
+            });
+
+            let lastMouse = { x: 0, y: 0 };
+            window.addEventListener("mousemove", (e) => {
+                lastMouse.x = e.clientX;
+                lastMouse.y = e.clientY;
+            });
+
+            window.addEventListener("keydown", (e) => {
+                if (!g) return;
+                if (e.key === "r" || e.key === "R") {
+                    bRestart.click();
+                    e.preventDefault();
+                } else if (e.key === "p" || e.key === "P") {
+                    bPause.click();
+                    e.preventDefault();
+                } else if (e.key === " ") {
+                    const el = document.elementFromPoint(
+                        lastMouse.x,
+                        lastMouse.y,
+                    );
+                    if (el && el.classList.contains("tile")) {
+                        const idx = parseInt(el.dataset.index, 10);
+                        chordReveal(idx);
+                        updateStatus();
+                    }
+                    e.preventDefault();
+                } else if (e.key === "f" || e.key === "F") {
+                    const el = document.elementFromPoint(
+                        lastMouse.x,
+                        lastMouse.y,
+                    );
+                    if (el && el.classList.contains("tile")) {
+                        const idx = parseInt(el.dataset.index, 10);
+                        toggleFlag(idx);
+                    }
+                }
+            });
+
+            showToast("Enter dimensions then Start.");
+        </script>
+    </body>
+</html>
